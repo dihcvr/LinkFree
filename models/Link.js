@@ -11,6 +11,10 @@ const LinkSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "profile",
   },
+  usersIps:{ // add a list of IP users to define the users who clicked on the link
+    type: [String],
+    default:[]
+  }
 });
 
 module.exports = mongoose.models.Link || mongoose.model("Link", LinkSchema);

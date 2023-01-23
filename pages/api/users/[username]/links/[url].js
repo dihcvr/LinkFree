@@ -7,11 +7,13 @@ import logger from "../../../../../config/logger";
 import Link from "../../../../../models/Link";
 import Profile from "../../../../../models/Profile";
 import Stats from "../../../../../models/Stats";
+import requestIp from "request-ip";
 
 export default async function handler(req, res) {
   await connectMongo();
 
   const { username, url } = req.query;
+  let userIp = requestIp.getClientIp(req)
 
   if (req.method != "GET") {
     return res
@@ -58,24 +60,32 @@ export default async function handler(req, res) {
   }
 
   if (getLink) {
-    try {
-      await Link.updateOne(
-        {
-          username,
-          url,
-        },
-        {
-          $inc: { clicks: 1 },
-        }
-      );
-    } catch (e) {
-      logger.error(
-        e,
-        `failed incrementing link: ${url} for username ${username}`
-      );
+    /* 
+    Check if the user exists on the IPs of users who click on the link.
+    if user clicks on the same link several times, only the first click should be counted
+    */
+    //otherwise we push the IP user on the list of users who click on the link using $push
+    if(!getLink.usersIps.includes(userIp)){
+      try {
+        await Link.updateOne(
+          {
+            username,
+            url
+          },
+          {
+            $inc: { clicks: 1 },
+            $push: {usersIps: userIp} // push the IP user on the list of the users who click on the link
+          }
+        );
+      } catch (e) {
+        logger.error(
+          e,
+          `failed incrementing link: ${url} for username ${username}`
+        );
+      }
     }
   }
-
+  // if the link is not found, create it and add the IP user on the list of the users who click on the link
   if (!getLink) {
     try {
       const link = await Link.create({
@@ -83,6 +93,7 @@ export default async function handler(req, res) {
         username,
         url,
         clicks: 1,
+        usersIps: [userIp]
       });
 
       await Profile.updateOne(
